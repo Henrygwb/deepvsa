@@ -1,13 +1,13 @@
 import os
 #os.environ["THEANO_FLAGS"] = "device=gpu0, floatX=float32"
 #os.environ["CUDA_VISIBLE_DEVICES"]="3"
-
 import re
 import argparse
 import collections
 import numpy as np
 import pandas as pd
 from itertools import chain
+from scipy import io
 from keras import backend as K
 from keras import initializers
 from AttentionLSTM import AttentionLSTM
@@ -62,11 +62,15 @@ class AttLayer(Layer):
     def compute_output_shape(self, input_shape):
         return (input_shape[0], input_shape[-1])
 
-def load_data(traces_path, npz_path, save_npz = 0, use_npz = 0, one_trace=0):
+def load_data(traces_path, model_option, npz_path, save_npz = 0, use_npz = 0, one_trace=0, inst_len=0):
     if use_npz == 1:
         data = np.load(npz_path)
         inst = data['inst']
         label = data['label']
+        if model_option == 3:
+            inst_len = len(inst[0])
+        else:
+            model_option = 0
     else:
         inst = []
         label = []
@@ -74,6 +78,7 @@ def load_data(traces_path, npz_path, save_npz = 0, use_npz = 0, one_trace=0):
             inst_file = os.path.join(traces_path, 'binary')
             label_file = os.path.join(traces_path, 'region')
             label_df = pd.read_csv(label_file, sep='\n', header=None, names=['label'])
+            label_df['label'] = label_df['label'].astype('str')
             label_unique = list(label_df['label'].unique())
             for i in label_unique:
                 if len(i) > 2:
@@ -88,10 +93,12 @@ def load_data(traces_path, npz_path, save_npz = 0, use_npz = 0, one_trace=0):
         else:
             data_set = os.listdir(traces_path)
             for folder in data_set:
+                print folder
                 data_file = os.path.join(traces_path, folder)
                 inst_file = os.path.join(data_file, 'binary')
                 label_file = os.path.join(data_file, 'region')
                 label_df = pd.read_csv(label_file, sep='\n', header=None, names=['label'])
+                label_df['label'] = label_df['label'].astype('str')
                 label_unique = list(label_df['label'].unique())
                 for i in label_unique:
                     if len(i) > 2:
@@ -103,15 +110,29 @@ def load_data(traces_path, npz_path, save_npz = 0, use_npz = 0, one_trace=0):
                 inst_df = inst_df.binary.apply(lambda x: [int(a, 16) for a in x.split(' ')])
                 inst.extend(inst_df.tolist())
                 label.extend(label_df.values.tolist())
+
+            inst_len_all = [len(aa) for aa in inst]
+            if inst_len == 0:
+                inst_len = collections.Counter(inst_len_all).keys()[-3]
+
+            if model_option == 3:
+                inst = pad_sequences(inst, maxlen=inst_len, truncating='post')
+                label = np.array(label).flatten()
+            else:
+                inst = np.array(list(chain.from_iterable(inst)))
+                label = [label[i] * inst_len_all[i] for i in xrange(len(label))]
+                label = np.hstack(label)
+
         if save_npz == 1:
             np.savez(npz_path, inst=inst, label=label)
-    return inst, label
+    return inst, label, inst_len
 
 class DEEPVSA(object):
     def __init__(self,
                  inst,
                  label,
                  seq_len,
+                 inst_len,
                  train_region,
                  model_option,
                  use_attention):
@@ -119,8 +140,9 @@ class DEEPVSA(object):
         self.seq_len = seq_len
         self.model_option = model_option
         self.train_region = train_region
-        self.X, self.inst_len, self.Y, self.Y_one_hot, self.true_label, self.n_class = \
-            self.list2np(inst, label, seq_len, train_region, model_option, inst_len = 0)
+        self.inst_len = inst_len
+        self.X, self.Y, self.Y_one_hot, self.true_label, self.n_class = \
+            self.list2np(inst, label, seq_len, train_region, model_option)
         self.build_model(use_attention)
 
     def predict_classes(self, proba):
@@ -129,22 +151,7 @@ class DEEPVSA(object):
         else:
             return (proba > 0.5).astype('int32')
 
-    def list2np(self, inst, label, seq_len, train_region, model_option, inst_len, testing=False):
-        inst_len_all = [len(aa) for aa in inst]
-        if inst_len == 0:
-            inst_len = collections.Counter(inst_len_all).keys()[-3]
-
-        if model_option == 3:
-            inst = pad_sequences(inst, maxlen=inst_len, truncating='post')
-            label = np.array(label).flatten()
-        else:
-            inst = np.array(list(chain.from_iterable(inst)))
-            label = [label[i] * inst_len_all[i] for i in xrange(len(label))]
-            label = np.hstack(label)
-            label[label==14] = 13
-            label[label==41] = 43
-            label[label==42] = 43
-            label[label==44] = 43
+    def list2np(self, inst, label, seq_len, train_region, model_option, testing=False):
 
         label_list = [(train_region + 1) * 10 + id for id in xrange(5)]
 
@@ -161,10 +168,10 @@ class DEEPVSA(object):
             assert len(self.true_label) >= len(true_label), "Number of testing classes is larger than training classes."
 
             true_label = self.true_label
-            n_class = self.n_class
-
-        true_label = true_label
-        n_class = len(true_label)
+            n_class = len(true_label)
+        else:
+            true_label = true_label
+            n_class = len(true_label)
 
         for idx in xrange(n_class):
             label[label == true_label[idx]] = idx
@@ -185,7 +192,7 @@ class DEEPVSA(object):
         Y = label[0:(num_sample * seq_len), ].reshape(num_sample, seq_len)
 
         Y_one_hot = to_categorical(Y).astype('int32')
-        return X, inst_len, Y, Y_one_hot, true_label, n_class
+        return X, Y, Y_one_hot, true_label, n_class
 
     def build_model(self, use_attention):
         if self.model_option == 0:
@@ -223,7 +230,7 @@ class DEEPVSA(object):
             bin_embedded = Embedding(input_dim=257, output_dim=16, input_length=self.inst_len)(inst_input)
             inst_embedded = Bidirectional(LSTM(units=8, dropout=0.25, recurrent_dropout=0.25,
                                                return_sequences=True))(bin_embedded)
-            if use_attention:
+            if True:
                 inst_embedded = Bidirectional(LSTM(units=8, dropout=0.25, recurrent_dropout=0.25,
                                                    return_sequences=True))(inst_embedded)
                 inst_embedded = AttLayer(8)(inst_embedded)
@@ -259,6 +266,9 @@ class DEEPVSA(object):
 
     def fit(self, batch_size, epoch, save_model, save_dir):
         print '================================================'
+        print "Data shape..."
+        print self.X.shape
+        print self.Y_one_hot.shape
         print "Counting the number of data in each category..."
         print "Existing labels: "
         print self.true_label
@@ -266,7 +276,7 @@ class DEEPVSA(object):
         print '================================================'
 
         print 'Starting training...'
-        self.model.compile('adam', 'categorical_crossentropy', metrics=['categorical_accuracy'])
+        self.model.compile('adam', 'categorical_crossentropy', metrics=['accuracy'])
         self.model.fit(self.X, self.Y_one_hot, batch_size=batch_size, epochs=epoch, verbose=1)
         if save_model:
             if self.model_option == 0:
@@ -278,7 +288,11 @@ class DEEPVSA(object):
             else:
                 name = str(self.train_region) + '_han.h5'
             save_dir = os.path.join(save_dir, name)
-            self.model.save(save_dir)
+            if model_option==3:
+                weights = self.model.get_weights()
+                io.savemat(save_dir, {'weights':weights})
+            else:
+                self.model.save(save_dir)
         return 0
 
     def evaluate(self):
@@ -306,8 +320,8 @@ class DEEPVSA(object):
         return 0
 
     def predict(self, inst_test, label_test):
-        X_test, _, Y_test, _, _, _ = self.list2np(inst_test, label_test, self.seq_len, self.train_region, self.model_option,
-                                                  self.inst_len, testing=True)
+        X_test, Y_test, _, _, _ = self.list2np(inst_test, label_test, self.seq_len,
+                                               self.train_region, self.model_option, testing=True)
 
         y_pred = self.predict_classes(self.model.predict(X_test))
 
@@ -433,25 +447,67 @@ if __name__ == "__main__":
     # label_train = arg.label_train
     # model_option = arg.model_option
 
-    traces_path = "../data/binutils/"
-    seq_len = 200
+    #trace_path = '/home/wzg13/Data/Traces/train_traces'
+    train_traces_path = "../data/binutils/"
+    test_traces_path = "../data/vulnerable/"
+    seq_len = 400
     label_trains = [0, 1, 2, 3]
-    model_option = 0
+    model_option = 3
     batch_size = 100
     epochs = 1
-    y_preds = []
-    true_labels = []
+
     for label_train in label_trains:
-        inst, label = load_data(traces_path, npz_path='', save_npz=0, use_npz=0)
-        vsa = DEEPVSA(inst, label, seq_len = seq_len, train_region = label_train, model_option = model_option, use_attention = 0)
+        if model_option == 0 and label_train == 0:
+            npz_path_train = '../data/train_npz_bin.npz'
+            save_npz_train = 1
+            use_npz_train = 0
+            npz_path_test = '../data/test_npz_bin.npz'
+            save_npz_test = 1
+            use_npz_test = 0
+
+        elif model_option == 3 and label_train == 0:
+            npz_path_train = '../data/train_npz_inst.npz'
+            save_npz_train = 1
+            use_npz_train = 0
+            npz_path_test = '../data/test_npz_inst.npz'
+            save_npz_test = 1
+            use_npz_test = 0
+
+        elif model_option == 3:
+            npz_path_train = '../data/train_npz_inst.npz'
+            save_npz_train = 0
+            use_npz_train = 1
+            npz_path_test = '../data/test_npz_inst.npz'
+            save_npz_test = 0
+            use_npz_test = 1
+
+        else:
+            npz_path_train = '../data/train_npz_bin.npz'
+            save_npz_train = 0
+            use_npz_train = 1
+            npz_path_test = '../data/test_npz_bin.npz'
+            save_npz_test = 0
+            use_npz_test = 1
+
+        inst, label, inst_len = load_data(train_traces_path, model_option = model_option, npz_path=npz_path_train, save_npz=save_npz_train, use_npz=use_npz_train)
+        print inst.shape
+        print label.shape
+        vsa = DEEPVSA(inst, label, seq_len = seq_len, inst_len = inst_len, train_region = label_train, model_option = model_option, use_attention = 0)
         vsa.fit(batch_size, epochs, save_model = 1, save_dir='../model')
         vsa.evaluate()
 
-        test_traces_path = "../data/vulnerable/"
-        inst, label = load_data(test_traces_path, npz_path='', save_npz=0, use_npz=0)
+        inst, label, inst_len = load_data(test_traces_path, model_option = model_option, npz_path=npz_path_test, save_npz=save_npz_test, use_npz=use_npz_test, inst_len = inst_len)
+        print inst.shape
+        print label.shape
         y_pred, true_label = vsa.predict(inst, label)
+
+    """    
+    y_preds = []
+    true_labels = []
+    ####
         y_preds.append(y_preds)
         true_labels.append(true_label)
+    io.savemat('../model'+'result_'+str(model_option)+'.mat', {'y_pred':y_preds})
 
     traces_path = "../data/vulnerable/abc2mtex"
     inst, label = load_data(traces_path, npz_path='', save_npz=0, use_npz=0, one_trace=1)
@@ -466,3 +522,4 @@ if __name__ == "__main__":
                        true_label3 = [40,43],)
 
     test.write_label(traces_path)
+    """
