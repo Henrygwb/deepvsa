@@ -1,5 +1,5 @@
 import os
-#os.environ["THEANO_FLAGS"] = "device=gpu0, floatX=float32"
+os.environ["THEANO_FLAGS"] = "device=gpu0, floatX=float32"
 #os.environ["CUDA_VISIBLE_DEVICES"]="3"
 import re
 import argparse
@@ -447,16 +447,22 @@ if __name__ == "__main__":
     # label_train = arg.label_train
     # model_option = arg.model_option
 
-    #trace_path = '/home/wzg13/Data/Traces/train_traces'
-    train_traces_path = "../data/binutils/"
-    test_traces_path = "../data/vulnerable/"
+    train_traces_path = '/home/wzg13/Data/Traces/train_traces'
+    #train_traces_path = "../data/binutils/"
+    test_traces_path = "../data/vulnerable"
     seq_len = 400
     label_trains = [0, 1, 2, 3]
-    model_option = 3
-    batch_size = 100
-    epochs = 1
+    model_option = 0
+    batch_size = 500
+    epochs = 100
 
     for label_train in label_trains:
+        print '****************************************'
+        print '****************************************'
+        print label_train
+        print '****************************************'
+        print '****************************************'
+
         if model_option == 0 and label_train == 0:
             npz_path_train = '../data/train_npz_bin.npz'
             save_npz_train = 1

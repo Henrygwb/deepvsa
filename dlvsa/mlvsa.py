@@ -44,10 +44,12 @@ def load_data(traces_path, npz_path, save_npz = 0, use_npz = 0, one_trace=0):
         else:
             data_set = os.listdir(traces_path)
             for folder in data_set:
+                print folder
                 data_file = os.path.join(traces_path, folder)
                 inst_file = os.path.join(data_file, 'binary')
                 label_file = os.path.join(data_file, 'region')
                 label_df = pd.read_csv(label_file, sep='\n', header=None, names=['label'])
+                label_df['label'] = label_df['label'].astype('str')
                 label_unique = list(label_df['label'].unique())
                 for i in label_unique:
                     if len(i) > 2:
@@ -201,7 +203,8 @@ if __name__ == "__main__":
     print '3: other...'
     print '********************************'
 
-    traces_path_train = "../data/binutils/"
+    #traces_path_train = "../data/binutils/"
+    traces_path_train = "/home/wzg13/Data/Traces/train_traces"
     traces_path_test = "../data/vulnerable/"
 
     seq_len = 200
