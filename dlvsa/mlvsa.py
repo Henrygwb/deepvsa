@@ -93,10 +93,10 @@ class MLVSA(object):
         inst = np.array(list(chain.from_iterable(inst)))
         label = [label[i] * inst_len_all[i] for i in xrange(len(label))]
         label = np.hstack(label)
-        label[label == 14] = 13
-        label[label == 41] = 43
-        label[label == 42] = 43
-        label[label == 44] = 43
+        #label[label == 11] = 13
+        #label[label == 41] = 43
+        #label[label == 42] = 43
+        #label[label == 44] = 43
 
         label_list = [(train_region + 1) * 10 + id for id in xrange(5)]
 
@@ -209,7 +209,7 @@ if __name__ == "__main__":
 
     seq_len = 200
     label = [0, 1, 2, 3]
-    model_option = 2
+    model_option = 0
     y_preds = []
     true_labels = []
     inst_train, label_train = load_data(traces_path_train, npz_path='', save_npz=0, use_npz=0)

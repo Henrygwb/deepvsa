@@ -154,7 +154,7 @@ class DEEPVSA(object):
     def list2np(self, inst, label, seq_len, train_region, model_option, testing=False):
 
         label_list = [(train_region + 1) * 10 + id for id in xrange(5)]
-
+        label[label==11] =13 
         true_label = []
         for i in label_list:
             if np.where(label == i)[0].shape[0] != 0:
@@ -331,7 +331,7 @@ class DEEPVSA(object):
         print("Precision: %s Recall: %s F1: %s" % (precision, recall, f1))
         print '================================================'
 
-        print 'Evaluating training results of positive labels at region ' + str(self.train_region)
+        print 'Evaluating testing results of positive labels at region ' + str(self.train_region)
         precision, recall, f1, _ = precision_recall_fscore_support(Y_test.flatten(), y_pred.flatten(),
                                                                    labels=range(self.n_class-1), average='weighted')
         print("Precision: %s Recall: %s F1: %s" % (precision, recall, f1))
@@ -454,7 +454,7 @@ if __name__ == "__main__":
     label_trains = [0, 1, 2, 3]
     model_option = 0
     batch_size = 500
-    epochs = 100
+    epochs = 50
 
     for label_train in label_trains:
         print '****************************************'
@@ -463,7 +463,7 @@ if __name__ == "__main__":
         print '****************************************'
         print '****************************************'
 
-        if model_option == 0 and label_train == 0:
+        if model_option == 0 and label_train == -1:
             npz_path_train = '../data/train_npz_bin.npz'
             save_npz_train = 1
             use_npz_train = 0
