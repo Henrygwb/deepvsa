@@ -89,11 +89,11 @@ class MLVSA(object):
             return (proba > 0.5).astype('int32')
 
     def list2np(self, inst, label, seq_len, train_region, model_option, testing=False):
-        inst_len_all = [len(aa) for aa in inst]
-        inst = np.array(list(chain.from_iterable(inst)))
-        label = [label[i] * inst_len_all[i] for i in xrange(len(label))]
-        label = np.hstack(label)
-        #label[label == 11] = 13
+        #inst_len_all = [len(aa) for aa in inst]
+        #inst = np.array(list(chain.from_iterable(inst)))
+        #label = [label[i] * inst_len_all[i] for i in xrange(len(label))]
+        #label = np.hstack(label)
+        label[label==11] = 13
         #label[label == 41] = 43
         #label[label == 42] = 43
         #label[label == 44] = 43
@@ -145,16 +145,16 @@ class MLVSA(object):
             self.model = svm.SVC(kernel = 'rbf', decision_function_shape = 'ovo')
             self.y_pred = np.zeros_like(self.Y_test)
             for i in xrange(self.seq_len):
-                self.model.fit(self.X_train, self.Y_train)
-                self.y_pred[:,i] = self.model.predict(self.X_test)
+                self.model.fit(self.X_train[:,i].reshape(-1,1), self.Y_train[:,i].reshape(-1, 1))
+                self.y_pred[:,i] = self.model.predict(self.X_test[:,i].reshape(-1, 1))
 
         elif self.model_option == 1:
             print "Using RF >>>>>>>>>>>>>>>>>>>>>>>>"
             self.model = rf(n_estimators = 100)
             self.y_pred = np.zeros_like(self.Y_test)
             for i in xrange(self.seq_len):
-                self.model.fit(self.X_train, self.Y_train)
-                self.y_pred[:,i] = self.model.predict(self.X_test)
+                self.model.fit(self.X_train[:,i].reshape(-1, 1), self.Y_train[:,i].reshape(-1, 1))
+                self.y_pred[:,i] = self.model.predict(self.X_test[:,i].reshape(-1, 1))
 
         elif self.model_option == 2:
             print "Using HMM >>>>>>>>>>>>>>>>>>>>>>>"
@@ -209,11 +209,11 @@ if __name__ == "__main__":
 
     seq_len = 200
     label = [0, 1, 2, 3]
-    model_option = 0
+    model_option = 1
     y_preds = []
     true_labels = []
-    inst_train, label_train = load_data(traces_path_train, npz_path='', save_npz=0, use_npz=0)
-    inst_test, label_test = load_data(traces_path_test, npz_path='', save_npz=0, use_npz=0)
+    inst_train, label_train = load_data(traces_path_train, npz_path='../data/train_npz_bin.npz', save_npz=0, use_npz=1)
+    inst_test, label_test = load_data(traces_path_test, npz_path='../data/test_npz_bin.npz', save_npz=0, use_npz=1) 
     for label in label:
         vsa = MLVSA(inst_train, label_train, inst_test, label_test, seq_len = seq_len,
                     train_region = label, model_option = model_option)
