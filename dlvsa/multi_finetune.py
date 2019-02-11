@@ -155,14 +155,13 @@ class DEEPVSA(object):
                  seq_len,
                  inst_len,
                  model_option,
-                 use_attention):
+                 truncate):
         self.train_label = train_label
         self.seq_len = seq_len
         self.model_option = model_option
         self.inst_len = inst_len
         self.X, self.Y, self.Y_one_hot, self.n_class = self.list2np(inst, label, seq_len, model_option)
-        self.build_model(use_attention)
-        self.use_attention = use_attention
+        self.build_model(truncate)
 
     def predict_classes(self, proba):
         if proba.shape[-1] > 1:
@@ -190,46 +189,49 @@ class DEEPVSA(object):
         Y_one_hot = to_categorical(Y).astype('int32')
         return X, Y, Y_one_hot, n_class
 
-    def build_model(self, use_attention):
+    def build_model(self, truncate):
         if self.model_option == 0:
             print "Using Bi-SimpleRNN >>>>>>>>>>>>>>>>>>"
-            self.model = Sequential()
-            self.model.add(Embedding(input_dim=256, output_dim=64, input_length=self.seq_len))
-            self.model.add(Bidirectional(SimpleRNN(units=32, activation='tanh', return_sequences=True)))
-            self.model.add(Dropout(0.5))
-            self.model.add(Bidirectional(SimpleRNN(units=16, activation='tanh', return_sequences=True)))
-            self.model.add(Dropout(0.5))
-            self.model.add(Bidirectional(SimpleRNN(units=8, activation='tanh', return_sequences=True)))
-            self.model.add(TimeDistributed(Dense(self.n_class, activation='softmax'), input_shape=(self.seq_len, 16)))
+            self.models = []
+            if truncate == 1:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_birnn_truncate.h5'))
+            else:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_birnn.h5'))
             self.model.summary()
 
         elif self.model_option == 1:
             print "Using Bi-GRU >>>>>>>>>>>>>>>>>>>>>>>>"
-            self.model = Sequential()
-            self.model.add(Embedding(input_dim=256, output_dim=64, input_length=self.seq_len))
-            self.model.add(Bidirectional(GRU(units=32, activation='tanh', return_sequences=True)))
-            self.model.add(Dropout(0.5))
-            self.model.add(Bidirectional(GRU(units=16, activation='tanh', return_sequences=True)))
-            self.model.add(Dropout(0.5))
-            self.model.add(Bidirectional(GRU(units=8, activation='tanh', return_sequences=True)))
-            self.model.add(TimeDistributed(Dense(self.n_class, activation='softmax'), input_shape=(self.seq_len, 16)))
+            self.models = []
+            if truncate == 1:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_bigru_truncate.h5'))
+            else:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_bigru.h5'))
             self.model.summary()
 
         elif self.model_option == 2:
             print "Using Bi-LSTM >>>>>>>>>>>>>>>>>>>>>>>"
-            self.model = Sequential()
-            self.model.add(Embedding(input_dim=256, output_dim=64, input_length=self.seq_len))
-            self.model.add(Bidirectional(LSTM(units=32, activation='tanh', return_sequences=True)))
-            self.model.add(Dropout(0.5))
-            self.model.add(Bidirectional(LSTM(units=16, activation='tanh', return_sequences=True)))
-            self.model.add(Dropout(0.5))
-            self.model.add(Bidirectional(LSTM(units=8, activation='tanh', return_sequences=True)))
-            self.model.add(TimeDistributed(Dense(self.n_class, activation='softmax'), input_shape=(self.seq_len, 16)))
+            self.models = []
+            if truncate == 1:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_bilstm_truncate.h5'))
+            else:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_bilstm.h5'))
             self.model.summary()
 
         elif self.model_option == 3:
             print "Using hierarchical attention networks >>>>>>>>>>"
-            self.model = load_model('../model/' +str(self.train_label) + '_han_truncate.h5')
+            self.models = []
+            if truncate == 1:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_han_truncate.h5'))
+            else:
+                for i in range(4):
+                    self.models.append(load_model('../model/' + str(i) + '_han.h5'))
             self.model.summary()
 
     def fit(self, batch_size, epoch_1, epoch_2, save_model, save_dir, truncate):
@@ -274,11 +276,7 @@ class DEEPVSA(object):
                 else:
                     name = str(self.train_label) + '_han.h5'
             save_dir = os.path.join(save_dir, name)
-            if model_option==3 and self.use_attention:
-                weights = self.model.get_weights()
-                io.savemat(save_dir, {'weights':weights})
-            else:
-                self.model.save(save_dir)
+            self.model.save(save_dir)
         return 0
 
     def evaluate(self):
@@ -384,7 +382,8 @@ if __name__ == "__main__":
         print inst.shape
         print label.shape
 
-        vsa = DEEPVSA(inst, label, train_label, seq_len = seq_len, inst_len = inst_len, model_option = model_option, use_attention = 0)
+        vsa = DEEPVSA(inst, label, train_label, seq_len = seq_len, inst_len = inst_len, model_option = model_option,
+                      truncate=truncate)
         vsa.fit(batch_size, epochs_1, epochs_2, save_model = 0, save_dir='../model', truncate = truncate)
         vsa.evaluate()
 
