@@ -1,0 +1,60 @@
+# Object files
+*.o
+*.ko
+*.obj
+*.elf
+
+# Precompiled Headers
+*.gch
+*.pch
+
+# Libraries
+*.lib
+*.a
+*.la
+*.lo
+
+# Shared objects (inc. Windows DLLs)
+*.dll
+#*.so
+#*.so.*
+*.dylib
+
+# Executables
+*.exe
+*.out
+*.app
+*.i*86
+*.x86_64
+*.hex
+
+# Debug files
+*.dSYM/
+*.su
+
+# Swap files
+*.swp
+
+# Own executable
+src/reverse
+
+# Temp file in configure/make
+*.log
+Makefile
+src/Makefile
+Makefile.in
+src/Makefile.in
+src/.deps/
+config.h
+config.log
+config.status
+stamp-h1
+autom4te.cache
+aclocal.m4
+configure
+depcomp
+compile
+config.h.in
+config.h.in~
+install-sh
+missing
