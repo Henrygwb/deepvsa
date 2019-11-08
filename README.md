@@ -8,7 +8,7 @@
 
 ## Data and models of DEEVPSA
 
-See details in <https://psu.box.com/s/9nkz2uf9xv7acces7o5th81wb4uplxq3.>
+See details in <https://psu.box.com/s/9nkz2uf9xv7acces7o5th81wb4uplxq3>
 
 ## Paper
 
